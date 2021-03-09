@@ -1,5 +1,5 @@
 //
-// Copyright 2020 Signal Messenger, LLC.
+// Copyright 2020-2021 Signal Messenger, LLC.
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
@@ -49,8 +49,8 @@ pub use {
     },
     sealed_sender::{
         sealed_sender_decrypt, sealed_sender_decrypt_to_usmc, sealed_sender_encrypt,
-        SealedSenderDecryptionResult, SenderCertificate, ServerCertificate,
-        UnidentifiedSenderMessage, UnidentifiedSenderMessageContent,
+        sealed_sender_encrypt_from_usmc, SealedSenderDecryptionResult, SenderCertificate,
+        ServerCertificate, UnidentifiedSenderMessage, UnidentifiedSenderMessageContent,
     },
     sender_keys::{SenderKeyName, SenderKeyRecord},
     session::{process_prekey, process_prekey_bundle},
