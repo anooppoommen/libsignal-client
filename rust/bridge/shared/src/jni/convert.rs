@@ -9,6 +9,7 @@ use jni::JNIEnv;
 use libsignal_protocol::*;
 use paste::paste;
 use std::borrow::Cow;
+use std::convert::TryInto;
 use std::ops::Deref;
 
 use super::*;
@@ -188,6 +189,36 @@ impl<'a> SimpleArgTypeInfo<'a> for Option<String> {
     }
 }
 
+impl<'a> SimpleArgTypeInfo<'a> for Uuid {
+    type ArgType = JObject<'a>;
+    fn convert_from(env: &JNIEnv, foreign: JObject<'a>) -> SignalJniResult<Self> {
+        check_jobject_type(env, foreign, "java/util/UUID")?;
+        let msb = match call_method_checked(env, foreign, "getMostSignificantBits", "()J", &[])? {
+            JValue::Long(value) => value,
+            anything_else => {
+                return Err(SignalJniError::UnexpectedJniResultType(
+                    "getMostSignificantBits",
+                    anything_else.type_name(),
+                ))
+            }
+        };
+        let lsb = match call_method_checked(env, foreign, "getLeastSignificantBits", "()J", &[])? {
+            JValue::Long(value) => value,
+            anything_else => {
+                return Err(SignalJniError::UnexpectedJniResultType(
+                    "getLeastSignificantBits",
+                    anything_else.type_name(),
+                ))
+            }
+        };
+
+        let mut bytes = [0u8; 16];
+        bytes[..8].copy_from_slice(&msb.to_be_bytes());
+        bytes[8..].copy_from_slice(&lsb.to_be_bytes());
+        Ok(bytes.into())
+    }
+}
+
 /// A wrapper around [`jni::objects::AutoArray`] that also stores the array's length.
 pub struct AutoByteSlice<'a> {
     jni_array: AutoArray<'a, 'a, jbyte>,
@@ -359,6 +390,24 @@ impl ResultTypeInfo for Option<&str> {
     }
 }
 
+impl ResultTypeInfo for Uuid {
+    type ResultType = jobject;
+    fn convert_into(self, env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
+        let uuid_class = env.find_class("java/util/UUID")?;
+        let uuid_bytes: [u8; 16] = self.into();
+        let ctor_args = [
+            JValue::from(jlong::from_be_bytes(
+                uuid_bytes[..8].try_into().expect("correct length"),
+            )),
+            JValue::from(jlong::from_be_bytes(
+                uuid_bytes[8..].try_into().expect("correct length"),
+            )),
+        ];
+
+        Ok(*env.new_object(uuid_class, "(JJ)V", &ctor_args)?)
+    }
+}
+
 impl<T: ResultTypeInfo> ResultTypeInfo for Result<T, SignalProtocolError> {
     type ResultType = T::ResultType;
     fn convert_into(self, env: &JNIEnv) -> SignalJniResult<Self::ResultType> {
@@ -527,6 +576,9 @@ macro_rules! jni_arg_type {
     (Context) => {
         jni::JObject
     };
+    (Uuid) => {
+        jni::JavaUUID
+    };
     (&mut dyn $typ:ty) => {
         paste!(jni::[<Java $typ>])
     };
@@ -594,6 +646,9 @@ macro_rules! jni_result_type {
     };
     (Option<&str>) => {
         jni::jstring
+    };
+    (Uuid) => {
+        jni::JavaReturnUUID
     };
     (Vec<u8>) => {
         jni::jbyteArray
