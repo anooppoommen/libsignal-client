@@ -4,6 +4,8 @@
 //
 
 import * as os from 'os';
+import * as Errors from './Errors';
+
 import bindings = require('bindings'); // eslint-disable-line @typescript-eslint/no-require-imports
 import * as Native from './Native';
 
@@ -12,6 +14,10 @@ const NativeImpl = bindings(
 ) as typeof Native;
 
 export const { initLogger, LogLevel } = NativeImpl;
+
+export { Errors };
+
+NativeImpl.registerErrorClasses(Errors);
 
 export const enum CiphertextMessageType {
   Whisper = 2,
@@ -1265,7 +1271,7 @@ export async function sealedSenderDecryptMessage(
   identityStore: IdentityKeyStore,
   prekeyStore: PreKeyStore,
   signedPrekeyStore: SignedPreKeyStore
-): Promise<SealedSenderDecryptionResult | null> {
+): Promise<SealedSenderDecryptionResult> {
   const ssdr = await NativeImpl.SealedSender_DecryptMessage(
     message,
     trustRoot,
@@ -1278,9 +1284,6 @@ export async function sealedSenderDecryptMessage(
     prekeyStore,
     signedPrekeyStore
   );
-  if (ssdr == null) {
-    return null;
-  }
   return SealedSenderDecryptionResult._fromNativeHandle(ssdr);
 }
 
